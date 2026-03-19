@@ -1,0 +1,73 @@
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 13:02:11 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: D:\Keil5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.l
+                    -st) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          
+   3          void Delay(unsigned int xms);
+   4          unsigned char LEDNum;
+   5                  
+   6          void main()
+   7          {
+   8   1      
+   9   1              P2 = 0XFE;
+  10   1              while(1)
+  11   1              {
+  12   2                      if(P3_1==0)
+  13   2                      {
+  14   3                              Delay(20);
+  15   3                              while(P3_1==0);
+  16   3                              Delay(20);
+  17   3                              
+  18   3                              LEDNum++;
+  19   3                              if(LEDNum>=8)LEDNum=0;
+  20   3                              P2=~(0x01<<LEDNum);
+  21   3                      }
+  22   2                      if(P3_0==0)
+  23   2                      {
+  24   3                              Delay(20);
+  25   3                              while(P3_0==0);
+  26   3                              Delay(20);
+  27   3                              
+  28   3                              LEDNum--;
+  29   3                              if(LEDNum<=0)LEDNum=8;
+  30   3                              P2=~(0x01<<LEDNum);
+  31   3                      }
+  32   2              }
+  33   1      }
+  34          
+  35          void Delay(unsigned int xms)            //@12.000MHz
+  36          {
+  37   1              unsigned char i, j;
+  38   1              while(xms--)
+  39   1              {
+  40   2                      i = 2;
+  41   2                      j = 239;
+  42   2                      do
+  43   2                      {
+  44   3                              while (--j);
+  45   3                      } while (--i);
+  46   2              }
+  47   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    110    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+C51 COMPILER V9.54   MAIN                                                                  03/19/2026 13:02:11 PAGE 2   
+
+   DATA SIZE        =      1    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
