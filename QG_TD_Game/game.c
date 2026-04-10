@@ -335,7 +335,7 @@ void Game_BuildLaneChars(unsigned char lane, char *out12)
         if (!g_plants[i].active || g_plants[i].lane != lane) continue;
         if (g_plants[i].col < MAP_COLS)
         {
-            out12[g_plants[i].col] = (g_plants[i].type == PLANT_SHOOTER) ? 'S' : 'N';
+            out12[g_plants[i].col] = (g_plants[i].type == PLANT_SHOOTER) ? 'S' : 'W';
         }
     }
     for (i = 0; i < MAX_BULLETS; i++)
