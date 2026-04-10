@@ -75,7 +75,7 @@ void UI_DrawStart(void)
 
     PutText(0, 0, "QG 51 TD GAME");
     PutText(1, 0, "2/8 move 5S 9W");
-    PutText(2, 0, "13 pause 16back");
+    PutText(2, 0, "13 pause 16 back");
     PutText(3, 0, "press 5 to start");
     FlushDiff();
 }

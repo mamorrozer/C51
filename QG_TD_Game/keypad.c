@@ -2,11 +2,13 @@
 #include "keypad.h"
 #include "delay.h"
 
+#define KEY_RELEASE_TIMEOUT 50000u
+
 #define WAIT_RELEASE(pin)                      \
     do                                         \
     {                                          \
         unsigned int timeout = 0;              \
-        while ((pin) == 0 && timeout < 50000)  \
+        while ((pin) == 0 && timeout < KEY_RELEASE_TIMEOUT)  \
         {                                      \
             timeout++;                         \
         }                                      \

@@ -17,7 +17,7 @@ static unsigned char spawn_cnt = 0;
 
 static unsigned int NextRand(void)
 {
-    /* 16位 Galois LFSR，多项式掩码 0xB400。 */
+    /* 16位 Galois LFSR，多项式掩码 0xB400，周期可达 65535。 */
     rand_seed = (rand_seed >> 1) ^ (-(rand_seed & 1u) & 0xB400u);
     return rand_seed;
 }
