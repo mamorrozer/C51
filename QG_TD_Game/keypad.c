@@ -12,13 +12,15 @@ unsigned char Keypad_GetKey(void)
     if (P1_6 == 0) { DelayMs(20); while (P1_6 == 0); DelayMs(20); key = 5;  }
     if (P1_5 == 0) { DelayMs(20); while (P1_5 == 0); DelayMs(20); key = 9;  }
     if (P1_4 == 0) { DelayMs(20); while (P1_4 == 0); DelayMs(20); key = 13; }
+    if (key) return key;
 
     P1 = 0xFF;
     P1_2 = 0;
     if (P1_7 == 0) { DelayMs(20); while (P1_7 == 0); DelayMs(20); key = 2;  }
     if (P1_6 == 0) { DelayMs(20); while (P1_6 == 0); DelayMs(20); key = 6;  }
-    if (P1_5 == 0) { DelayMs(20); while (P1_5 == 0); DelayMs(20); key = 10; }
+    if (P1_5 == 0) { DelayMs(20); while (P1_5 == 0); DelayMs(20); key = KEY_REMOVE; }
     if (P1_4 == 0) { DelayMs(20); while (P1_4 == 0); DelayMs(20); key = 14; }
+    if (key) return key;
 
     P1 = 0xFF;
     P1_1 = 0;
@@ -26,6 +28,7 @@ unsigned char Keypad_GetKey(void)
     if (P1_6 == 0) { DelayMs(20); while (P1_6 == 0); DelayMs(20); key = 7;  }
     if (P1_5 == 0) { DelayMs(20); while (P1_5 == 0); DelayMs(20); key = 11; }
     if (P1_4 == 0) { DelayMs(20); while (P1_4 == 0); DelayMs(20); key = 15; }
+    if (key) return key;
 
     P1 = 0xFF;
     P1_0 = 0;

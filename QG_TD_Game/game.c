@@ -3,6 +3,8 @@
 #include "beep.h"
 #include "at24c02.h"
 
+#define CURSOR_MAX_COL  (MAP_COLS - 2)
+
 GameState g_game;
 Plant g_plants[MAX_PLANTS];
 Enemy g_enemies[MAX_ENEMIES];
@@ -259,7 +261,7 @@ void Game_HandleKey(unsigned char key)
     if (key == KEY_UP && g_game.cursor_lane > 0) g_game.cursor_lane--;
     if (key == KEY_DOWN && g_game.cursor_lane < (LANE_COUNT - 1)) g_game.cursor_lane++;
     if (key == KEY_LEFT && g_game.cursor_col > 0) g_game.cursor_col--;
-    if (key == KEY_RIGHT && g_game.cursor_col < (MAP_COLS - 2)) g_game.cursor_col++;
+    if (key == KEY_RIGHT && g_game.cursor_col < CURSOR_MAX_COL) g_game.cursor_col++;
 
     if (key == KEY_SHOOTER || key == KEY_WALL)
     {
@@ -329,20 +331,29 @@ void Game_BuildLaneChars(unsigned char lane, char *out12)
     for (i = 0; i < MAX_PLANTS; i++)
     {
         if (!g_plants[i].active || g_plants[i].lane != lane) continue;
-        out12[g_plants[i].col] = (g_plants[i].type == PLANT_SHOOTER) ? 'S' : 'N';
+        if (g_plants[i].col < MAP_COLS)
+        {
+            out12[g_plants[i].col] = (g_plants[i].type == PLANT_SHOOTER) ? 'S' : 'N';
+        }
     }
     for (i = 0; i < MAX_BULLETS; i++)
     {
         if (!g_bullets[i].active || g_bullets[i].lane != lane) continue;
-        out12[g_bullets[i].x] = '*';
+        if (g_bullets[i].x < MAP_COLS)
+        {
+            out12[g_bullets[i].x] = '*';
+        }
     }
     for (i = 0; i < MAX_ENEMIES; i++)
     {
         if (!g_enemies[i].active || g_enemies[i].lane != lane) continue;
-        out12[g_enemies[i].x] = (g_enemies[i].type == ENEMY_FAST) ? 'Z' : 'z';
+        if (g_enemies[i].x < MAP_COLS)
+        {
+            out12[g_enemies[i].x] = (g_enemies[i].type == ENEMY_FAST) ? 'Z' : 'z';
+        }
     }
 
-    if (g_game.cursor_lane == lane)
+    if (g_game.cursor_lane == lane && g_game.cursor_col < MAP_COLS)
     {
         out12[g_game.cursor_col] = 'C';
     }

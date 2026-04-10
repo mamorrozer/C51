@@ -25,12 +25,14 @@ static void PutText(unsigned char row, unsigned char col, char code *str)
 
 static void PutNum2(unsigned char row, unsigned char col, unsigned int num)
 {
+    if (col > 14) return;
     screen_now[row][col] = (char)('0' + (num / 10) % 10);
     screen_now[row][col + 1] = (char)('0' + num % 10);
 }
 
 static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 {
+    if (col > 12) return;
     screen_now[row][col] = (char)('0' + (num / 1000) % 10);
     screen_now[row][col + 1] = (char)('0' + (num / 100) % 10);
     screen_now[row][col + 2] = (char)('0' + (num / 10) % 10);
