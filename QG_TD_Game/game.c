@@ -4,6 +4,7 @@
 #include "at24c02.h"
 
 #define CURSOR_MAX_COL  (MAP_COLS - 2)
+#define MAX_VALID_SCORE 9999u
 
 GameState g_game;
 Plant g_plants[MAX_PLANTS];
@@ -16,6 +17,7 @@ static unsigned char spawn_cnt = 0;
 
 static unsigned int NextRand(void)
 {
+    /* 16位 Galois LFSR，多项式掩码 0xB400。 */
     rand_seed = (rand_seed >> 1) ^ (-(rand_seed & 1u) & 0xB400u);
     return rand_seed;
 }
@@ -203,7 +205,7 @@ static void EnemiesAct(void)
 void Game_LoadBestScore(void)
 {
     g_best_score = AT24C02_ReadWord(0);
-    if (g_best_score > 9999) g_best_score = 0;
+    if (g_best_score > MAX_VALID_SCORE) g_best_score = 0;
 }
 
 void Game_SaveBestScoreIfNeed(void)
