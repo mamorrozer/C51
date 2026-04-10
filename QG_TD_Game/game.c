@@ -286,7 +286,7 @@ void Game_HandleKey(unsigned char key)
     }
 
     p = FindPlant(g_game.cursor_lane, g_game.cursor_col);
-    if (key == 10 && p != 0)
+    if (key == KEY_REMOVE && p != 0)
     {
         p->active = 0;
     }

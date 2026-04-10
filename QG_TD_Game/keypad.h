@@ -8,6 +8,7 @@
 #define KEY_DOWN      8
 #define KEY_SHOOTER   5
 #define KEY_WALL      9
+#define KEY_REMOVE    10
 #define KEY_PAUSE     13
 #define KEY_BACK      16
 
