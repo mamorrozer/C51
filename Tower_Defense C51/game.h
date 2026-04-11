@@ -63,9 +63,12 @@ typedef struct
 } GameState;
 
 extern GameState g_game;
-extern Plant g_plants[MAX_PLANTS];
-extern Enemy g_enemies[MAX_ENEMIES];
-extern Bullet g_bullets[MAX_BULLETS];
+#ifndef GAME_OBJECT_MEM
+#define GAME_OBJECT_MEM xdata
+#endif
+extern Plant GAME_OBJECT_MEM g_plants[MAX_PLANTS];
+extern Enemy GAME_OBJECT_MEM g_enemies[MAX_ENEMIES];
+extern Bullet GAME_OBJECT_MEM g_bullets[MAX_BULLETS];
 
 void Game_Init(unsigned char mode);
 void Game_Update100ms(void);

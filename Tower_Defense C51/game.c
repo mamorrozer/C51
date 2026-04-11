@@ -7,9 +7,9 @@
 #define MAX_VALID_SCORE 9999u
 
 GameState g_game;
-Plant g_plants[MAX_PLANTS];
-Enemy g_enemies[MAX_ENEMIES];
-Bullet g_bullets[MAX_BULLETS];
+Plant GAME_OBJECT_MEM g_plants[MAX_PLANTS];
+Enemy GAME_OBJECT_MEM g_enemies[MAX_ENEMIES];
+Bullet GAME_OBJECT_MEM g_bullets[MAX_BULLETS];
 
 static unsigned int g_best_score = 0;
 static unsigned int rand_seed = 0x35A1;
