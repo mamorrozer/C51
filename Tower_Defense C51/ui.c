@@ -6,8 +6,8 @@
 unsigned char g_ui_state = UI_START;
 unsigned char g_mode_select = 0;
 
-static char screen_now[4][16];
-static char screen_old[4][16];
+static char xdata screen_now[4][16];
+static char xdata screen_old[4][16];
 
 static void FillLine(unsigned char row, char ch)
 {
