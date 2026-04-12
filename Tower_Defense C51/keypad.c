@@ -95,7 +95,7 @@ static JoyDir HW504_GetDirection(unsigned char x, unsigned char y)
     }
     else
     {
-        /* HW504 常见接法：Y 增大为上移，若相反可互换这两行返回值 */
+        /* HW504 常见接法：Y 增大为上移；若“上推摇杆但光标下移”，互换这两行返回值 */
         if (y > (ADC_CENTER + ADC_DIR_STRONG_DELTA)) return JOY_DIR_UP;
         if (y < (ADC_CENTER - ADC_DIR_STRONG_DELTA)) return JOY_DIR_DOWN;
     }
@@ -105,7 +105,7 @@ static JoyDir HW504_GetDirection(unsigned char x, unsigned char y)
 
 unsigned char Keypad_GetKey(void)
 {
-    static bit hold_lock = 0;
+    static bit repeat_lock = 0;
     static unsigned char sample_div_cnt = 0;
     static unsigned char x_cache = ADC_CENTER;
     static unsigned char y_cache = ADC_CENTER;
@@ -127,11 +127,11 @@ unsigned char Keypad_GetKey(void)
     dir = HW504_GetDirection(x, y);
     pressed = (JOY_SW == 0) ? 1 : 0;
 
-    if (hold_lock)
+    if (repeat_lock)
     {
         if (dir == JOY_DIR_CENTER && !pressed)
         {
-            hold_lock = 0;
+            repeat_lock = 0;
         }
         return KEY_NONE;
     }
@@ -154,7 +154,7 @@ unsigned char Keypad_GetKey(void)
 
     if (key != KEY_NONE)
     {
-        hold_lock = 1;
+        repeat_lock = 1;
     }
 
     return key;
