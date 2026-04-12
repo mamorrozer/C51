@@ -199,7 +199,7 @@ static void OLED_WriteDataRepeat(unsigned char dat, unsigned char count)
 
 static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char ch)
 {
-    const unsigned char code *glyph;
+    const unsigned char *code glyph;
     unsigned char page;
     unsigned char x;
 

@@ -72,14 +72,6 @@ static unsigned char ADC0832_Read(unsigned char channel)
     return dat;
 }
 
-static unsigned char ADC0832_ReadAvg(unsigned char channel)
-{
-    unsigned int sum = 0;
-    sum += ADC0832_Read(channel);
-    sum += ADC0832_Read(channel);
-    return (unsigned char)(sum >> 1);
-}
-
 static unsigned char AbsDiff(unsigned char a, unsigned char b)
 {
     return (a > b) ? (a - b) : (b - a);
@@ -119,8 +111,8 @@ unsigned char Keypad_GetKey(void)
     unsigned char x;
     unsigned char y;
 
-    x = ADC0832_ReadAvg(ADC_CH_X);
-    y = ADC0832_ReadAvg(ADC_CH_Y);
+    x = ADC0832_Read(ADC_CH_X);
+    y = ADC0832_Read(ADC_CH_Y);
     dir = HW504_GetDirection(x, y);
     pressed = (JOY_SW == 0) ? 1 : 0;
 
