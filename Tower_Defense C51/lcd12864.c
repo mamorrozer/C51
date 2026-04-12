@@ -14,7 +14,7 @@ static unsigned char g_cursor_row = 0;
 static unsigned char g_cursor_col = 0;
 
 /* Public domain font source: https://github.com/dhepper/font8x8 */
-static const unsigned char code OLED_FONT8x8[128][8] =
+static unsigned char code OLED_FONT8x8[128][8] =
 {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, /*   0 . */
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 }, /*   1 . */
@@ -199,7 +199,7 @@ static void OLED_WriteDataRepeat(unsigned char dat, unsigned char count)
 
 static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char ch)
 {
-    const unsigned char code *glyph;
+    unsigned char code *glyph;
     unsigned char page;
     unsigned char x;
 

@@ -21,6 +21,7 @@ sbit JOY_SW   = P3^3;
 #define ADC_CENTER             128
 #define ADC_DEAD_ZONE          32
 #define ADC_DIR_STRONG_DELTA   64
+#define ADC_SAMPLE_DIV         2
 
 typedef enum
 {
@@ -105,14 +106,24 @@ static JoyDir HW504_GetDirection(unsigned char x, unsigned char y)
 unsigned char Keypad_GetKey(void)
 {
     static bit hold_lock = 0;
+    static unsigned char sample_div_cnt = 0;
+    static unsigned char x_cache = ADC_CENTER;
+    static unsigned char y_cache = ADC_CENTER;
     JoyDir dir;
     unsigned char key = KEY_NONE;
     bit pressed;
     unsigned char x;
     unsigned char y;
 
-    x = ADC0832_Read(ADC_CH_X);
-    y = ADC0832_Read(ADC_CH_Y);
+    sample_div_cnt++;
+    if (sample_div_cnt >= ADC_SAMPLE_DIV)
+    {
+        sample_div_cnt = 0;
+        x_cache = ADC0832_Read(ADC_CH_X);
+        y_cache = ADC0832_Read(ADC_CH_Y);
+    }
+    x = x_cache;
+    y = y_cache;
     dir = HW504_GetDirection(x, y);
     pressed = (JOY_SW == 0) ? 1 : 0;
 
