@@ -46,7 +46,7 @@ static unsigned char PCF8591_Read(unsigned char channel)
     I2C_Start();
     I2C_Write(PCF8591_ADDR_READ);
     if (I2C_ReadAck()) goto stop_error;
-    (void)I2C_Read(); /* 首字节为无效缓存值，必须先读掉。 */
+    (void)I2C_Read(); /* 首字节为无效缓存值，必须先丢弃。 */
     I2C_SendAck(0);
 
     /* 第二字节才是当前通道有效值，读完发送 NACK 结束。 */
@@ -97,7 +97,7 @@ unsigned char Keypad_GetKey(void)
 {
     /* repeat_lock：方向/按压未回中前只触发一次，避免长按连发。 */
     static bit repeat_lock = 0;
-    /* 降采样：不是每次轮询都读 ADC，减轻 I2C 负担并平滑输入。 */
+    /* 降采样：每 ADC_SAMPLE_DIV 次轮询读一次 ADC，减轻 I2C 负担并平滑输入。 */
     static unsigned char sample_div_cnt = 0;
     static unsigned char x_cache = ADC_CENTER;
     static unsigned char y_cache = ADC_CENTER;
