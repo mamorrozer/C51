@@ -50,7 +50,7 @@ static unsigned char PCF8591_Read(unsigned char channel)
     I2C_Write(control);
     if (I2C_ReadAck()) goto stop_error;
 
-    /* 重新起始切到读，PCF8591 首字节是“上一拍缓存”，需要先读掉。 */
+    /* 重新起始切到读，PCF8591 首字节是“上一次缓存”，需要先读掉。 */
     I2C_Start();
     I2C_Write(PCF8591_ADDR_READ);
     if (I2C_ReadAck()) goto stop_error;
