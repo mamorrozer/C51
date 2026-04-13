@@ -1,5 +1,5 @@
 #include "ui.h"
-#include "lcd12864.h"
+#include "oled.h"
 #include "keypad.h"
 #include "beep.h"
 
@@ -42,14 +42,15 @@ static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 static void FlushDiff(void)
 {
     unsigned char r, c;
+    /* 局部刷新核心：只写变化字符，避免整屏重绘导致闪烁。 */
     for (r = 0; r < 4; r++)
     {
         for (c = 0; c < 16; c++)
         {
             if (screen_now[r][c] != screen_old[r][c])
             {
-                LCD_SetCursor(r, c);
-                LCD_WriteChar(screen_now[r][c]);
+                OLED_SetCursor(r, c);
+                OLED_WriteChar(screen_now[r][c]);
                 screen_old[r][c] = screen_now[r][c];
             }
         }
@@ -59,6 +60,7 @@ static void FlushDiff(void)
 void UI_Init(void)
 {
     unsigned char r, c;
+    /* UI 初始状态：开机进入开始页，模式默认为 EASY。 */
     g_ui_state = UI_START;
     g_mode_select = 0;
     for (r = 0; r < 4; r++)
@@ -159,6 +161,7 @@ void UI_DrawResult(void)
 
 void UI_HandleKey(unsigned char key)
 {
+    /* 状态机输入分发：同一个键在不同状态下语义不同。 */
     if (g_ui_state == UI_START)
     {
         if (key == KEY_SHOOTER)
