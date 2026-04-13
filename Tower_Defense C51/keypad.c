@@ -46,7 +46,7 @@ static unsigned char PCF8591_Read(unsigned char channel)
     I2C_Start();
     I2C_Write(PCF8591_ADDR_READ);
     if (I2C_ReadAck()) goto stop_error;
-    I2C_Read(); /* 首字节为无效缓存值，必须先读掉。 */
+    (void)I2C_Read(); /* 首字节为无效缓存值，必须先读掉。 */
     I2C_SendAck(0);
 
     /* 第二字节才是当前通道有效值，读完发送 NACK 结束。 */
