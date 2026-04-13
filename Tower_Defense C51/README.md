@@ -1,11 +1,15 @@
 # QG 51 塔防游戏（简化版植物大战僵尸）
 
 ## 1. 硬件连接建议
-- OLED SSD1306（I2C 软件驱动）：SCL=P2.1，SDA=P2.0（与 AT24C02 共总线）
-- AT24C02：SCL=P2.1，SDA=P2.0
-- HW504 摇杆（经 ADC0832 采样）：
-  - ADC0832 CS=P3.0，CLK=P3.1，DI=P3.2，DO=P3.4
-  - HW504 按压键 SW=P3.3（低电平按下）
+- I2C 总线（软件 I2C）：SCL=P0.0，SDA=P0.1（OLED / AT24C02 / PCF8591 共线）
+- OLED SSD1306（I2C）：SCL=P0.0，SDA=P0.1
+- AT24C02（I2C）：SCL=P0.0，SDA=P0.1
+- PCF8591（I2C ADC）：
+  - A0/A1/A2 建议接 GND（默认地址 0x90/0x91）
+  - SCL=P0.0，SDA=P0.1
+  - CH0 -> HW504 VRx（X轴），CH1 -> HW504 VRy（Y轴）
+  - HW504 按压键 SW -> P3.3（低电平按下）
+- 重要：P0 口为开漏，SCL/SDA 需外接上拉电阻（常用 4.7kΩ~10kΩ）。
 - 蜂鸣器：P3.7
 
 ## 2. 按键映射（HW504）

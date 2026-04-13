@@ -1,5 +1,13 @@
+/*------------------------------------------------------------
+ * 文件：oled.c
+ * 作用：SSD1306 OLED 文本显示驱动，把 4x16 字符抽象映射到 128x64 像素。
+ * 框架：
+ *   - 字模：8x8 ASCII 字库
+ *   - 底层：I2C 命令/数据发送
+ *   - 上层：光标控制、写字符、写字符串、清屏、初始化
+ *-----------------------------------------------------------*/
 #include <REGX52.H>
-#include "lcd12864.h"
+#include "oled.h"
 #include "i2c.h"
 #include "delay.h"
 
@@ -10,6 +18,7 @@
 #define OLED_TEXT_COL_MAX    16
 #define OLED_CHAR_WIDTH      8
 
+/* 文本光标：以“行/列字符坐标”记录当前位置，便于 UI 像字符屏一样使用 OLED。 */
 static unsigned char g_cursor_row = 0;
 static unsigned char g_cursor_col = 0;
 
@@ -148,6 +157,7 @@ static unsigned char code OLED_FONT8x8[128][8] =
 
 static void OLED_WriteCommand(unsigned char cmd)
 {
+    /* 命令帧格式：设备地址(写) + 控制字0x00 + 命令字节。 */
     I2C_Start();
     I2C_Write(OLED_ADDR_WRITE);
     I2C_ReadAck();
@@ -160,6 +170,7 @@ static void OLED_WriteCommand(unsigned char cmd)
 
 static void OLED_SetPos(unsigned char page, unsigned char col)
 {
+    /* SSD1306 定位：page 决定纵向 8 像素页，col 决定横向列地址。 */
     OLED_WriteCommand((unsigned char)(0xB0 | (page & 0x07)));
     OLED_WriteCommand((unsigned char)(0x10 | ((col >> 4) & 0x0F)));
     OLED_WriteCommand((unsigned char)(0x00 | (col & 0x0F)));
@@ -168,6 +179,7 @@ static void OLED_SetPos(unsigned char page, unsigned char col)
 static void OLED_WriteDataBlock(const unsigned char *dat, unsigned char len)
 {
     unsigned char i;
+    /* 数据帧格式：设备地址(写) + 控制字0x40 + 连续像素字节。 */
     I2C_Start();
     I2C_Write(OLED_ADDR_WRITE);
     I2C_ReadAck();
@@ -203,17 +215,18 @@ static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char
     unsigned char page;
     unsigned char x;
 
-    if (row >= OLED_TEXT_ROW_MAX || col >= OLED_TEXT_COL_MAX) return;
+    if (row >= OLED_TEXT_ROW_MAX || col >= OLED_TEXT_COL_MAX) return; /* 越界保护，防止写出显示区。 */
 
     glyph = OLED_FONT8x8[ch];
     page = (unsigned char)(row * 2);
     x = (unsigned char)(col * OLED_CHAR_WIDTH);
 
+    /* 8x8 字符按单页写入，形成 4x16 的文本布局。 */
     OLED_SetPos(page, x);
     OLED_WriteDataBlock(glyph, OLED_CHAR_WIDTH);
 }
 
-void LCD_WriteChar(unsigned char ch)
+void OLED_WriteChar(unsigned char ch)
 {
     OLED_WriteCharAt(g_cursor_row, g_cursor_col, ch);
     if (g_cursor_col + 1 < OLED_TEXT_COL_MAX)
@@ -222,9 +235,10 @@ void LCD_WriteChar(unsigned char ch)
     }
 }
 
-void LCD_Clear(void)
+void OLED_Clear(void)
 {
     unsigned char page;
+    /* 全屏 8 页逐页清零，每页 128 列。 */
     for (page = 0; page < 8; page++)
     {
         OLED_SetPos(page, 0);
@@ -234,24 +248,26 @@ void LCD_Clear(void)
     g_cursor_col = 0;
 }
 
-void LCD_SetCursor(unsigned char row, unsigned char col)
+void OLED_SetCursor(unsigned char row, unsigned char col)
 {
     if (row < OLED_TEXT_ROW_MAX) g_cursor_row = row;
     if (col < OLED_TEXT_COL_MAX) g_cursor_col = col;
 }
 
-void LCD_WriteString(unsigned char row, unsigned char col, char code *str)
+void OLED_WriteString(unsigned char row, unsigned char col, char code *str)
 {
-    LCD_SetCursor(row, col);
+    OLED_SetCursor(row, col);
     while (*str && g_cursor_col < OLED_TEXT_COL_MAX)
     {
-        LCD_WriteChar((unsigned char)*str++);
+        OLED_WriteChar((unsigned char)*str++);
     }
 }
 
-void LCD_Init(void)
+void OLED_Init(void)
 {
+    /* 上电延时：等待 OLED 内部电源/复位稳定。 */
     DelayMs(100);
+    /* 以下是 SSD1306 初始化序列：时钟、复用率、偏移、寻址模式、方向、电荷泵等配置。 */
     OLED_WriteCommand(0xAE);
     OLED_WriteCommand(0xD5);
     OLED_WriteCommand(0x80);
@@ -277,5 +293,6 @@ void LCD_Init(void)
     OLED_WriteCommand(0xA4);
     OLED_WriteCommand(0xA6);
     OLED_WriteCommand(0xAF);
-    LCD_Clear();
+    /* 初始化后清屏并将光标归位。 */
+    OLED_Clear();
 }

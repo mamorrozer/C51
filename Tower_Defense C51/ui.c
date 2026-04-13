@@ -1,5 +1,13 @@
+/*------------------------------------------------------------
+ * 文件：ui.c
+ * 作用：UI 状态机与界面绘制，实现“开始/选关/游戏/暂停/结算”页面。
+ * 框架：
+ *   - 维护双缓冲：screen_now / screen_old
+ *   - 页面函数负责填充 screen_now
+ *   - FlushDiff() 只把变化字符写到 OLED，降低闪烁
+ *-----------------------------------------------------------*/
 #include "ui.h"
-#include "lcd12864.h"
+#include "oled.h"
 #include "keypad.h"
 #include "beep.h"
 
@@ -12,11 +20,13 @@ static char xdata screen_old[4][16];
 static void FillLine(unsigned char row, char ch)
 {
     unsigned char i;
+    /* 用指定字符覆盖整行，常用于先清空再写文本。 */
     for (i = 0; i < 16; i++) screen_now[row][i] = ch;
 }
 
 static void PutText(unsigned char row, unsigned char col, char code *str)
 {
+    /* 按列连续写字符串，超出 16 列会自动截断。 */
     while (*str && col < 16)
     {
         screen_now[row][col++] = *str++;
@@ -25,6 +35,7 @@ static void PutText(unsigned char row, unsigned char col, char code *str)
 
 static void PutNum2(unsigned char row, unsigned char col, unsigned int num)
 {
+    /* 以两位十进制显示（00~99），用于资源/生命等短数字。 */
     if (col > 14) return;
     screen_now[row][col] = (char)('0' + (num / 10) % 10);
     screen_now[row][col + 1] = (char)('0' + num % 10);
@@ -32,6 +43,7 @@ static void PutNum2(unsigned char row, unsigned char col, unsigned int num)
 
 static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 {
+    /* 以四位十进制显示（0000~9999），用于分数/时长。 */
     if (col > 12) return;
     screen_now[row][col] = (char)('0' + (num / 1000) % 10);
     screen_now[row][col + 1] = (char)('0' + (num / 100) % 10);
@@ -42,14 +54,15 @@ static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 static void FlushDiff(void)
 {
     unsigned char r, c;
+    /* 局部刷新核心：只写变化字符，避免整屏重绘导致闪烁。 */
     for (r = 0; r < 4; r++)
     {
         for (c = 0; c < 16; c++)
         {
             if (screen_now[r][c] != screen_old[r][c])
             {
-                LCD_SetCursor(r, c);
-                LCD_WriteChar(screen_now[r][c]);
+                OLED_SetCursor(r, c);
+                OLED_WriteChar(screen_now[r][c]);
                 screen_old[r][c] = screen_now[r][c];
             }
         }
@@ -59,6 +72,7 @@ static void FlushDiff(void)
 void UI_Init(void)
 {
     unsigned char r, c;
+    /* UI 初始状态：开机进入开始页，模式默认为 EASY。 */
     g_ui_state = UI_START;
     g_mode_select = 0;
     for (r = 0; r < 4; r++)
@@ -104,6 +118,7 @@ void UI_DrawGame(void)
     FillLine(2, ' ');
     FillLine(3, ' ');
 
+    /* 顶栏：R=资源，H=生命，S=分数。 */
     PutText(0, 0, "R");
     PutNum2(0, 1, g_game.resource % 100);
     PutText(0, 4, "H");
@@ -159,6 +174,7 @@ void UI_DrawResult(void)
 
 void UI_HandleKey(unsigned char key)
 {
+    /* 状态机输入分发：同一个键在不同状态下语义不同。 */
     if (g_ui_state == UI_START)
     {
         if (key == KEY_SHOOTER)
