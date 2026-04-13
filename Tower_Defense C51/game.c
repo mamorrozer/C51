@@ -1,3 +1,12 @@
+/*------------------------------------------------------------
+ * 文件：game.c
+ * 作用：塔防核心逻辑（对象管理、碰撞结算、胜负判定、存档分数）。
+ * 框架：
+ *   - 数据：g_game + 植物/敌人/子弹对象池
+ *   - 输入：Game_HandleKey() 处理移动/建造/铲除
+ *   - 推进：Game_Update100ms() 以 100ms 为固定帧更新
+ *   - 输出：Game_BuildLaneChars() 生成 UI 轨道字符
+ *-----------------------------------------------------------*/
 #include "game.h"
 #include "keypad.h"
 #include "beep.h"
@@ -25,6 +34,7 @@ static unsigned int NextRand(void)
 static void ClearAllObjects(void)
 {
     unsigned char i;
+    /* 对象池清空：把 active 统一置0即可视为释放。 */
     for (i = 0; i < MAX_PLANTS; i++) g_plants[i].active = 0;
     for (i = 0; i < MAX_ENEMIES; i++) g_enemies[i].active = 0;
     for (i = 0; i < MAX_BULLETS; i++) g_bullets[i].active = 0;
@@ -33,6 +43,7 @@ static void ClearAllObjects(void)
 static Plant* FindPlant(unsigned char lane, unsigned char col)
 {
     unsigned char i;
+    /* 按轨道+列定位植物，用于碰撞检测与建造判重。 */
     for (i = 0; i < MAX_PLANTS; i++)
     {
         if (g_plants[i].active && g_plants[i].lane == lane && g_plants[i].col == col)
@@ -47,6 +58,7 @@ static Enemy* FindEnemyFront(unsigned char lane, unsigned char x)
 {
     unsigned char i;
     Enemy *best = 0;
+    /* 找到指定位置右侧最近的敌人，供射手判断是否开火。 */
     for (i = 0; i < MAX_ENEMIES; i++)
     {
         if (!g_enemies[i].active || g_enemies[i].lane != lane) continue;
@@ -66,6 +78,7 @@ static void SpawnEnemy(void)
     unsigned char i;
     unsigned char lane = (unsigned char)(NextRand() % LANE_COUNT);
     unsigned char type = (unsigned char)((NextRand() & 0x01) ? ENEMY_NORMAL : ENEMY_FAST);
+    /* 生成策略：随机轨道 + 随机类型，放到最右侧出生点。 */
     for (i = 0; i < MAX_ENEMIES; i++)
     {
         if (!g_enemies[i].active)
@@ -85,6 +98,7 @@ static void SpawnEnemy(void)
 static void SpawnBullet(unsigned char lane, unsigned char x)
 {
     unsigned char i;
+    /* 子弹池满时会丢弃本次发射请求。 */
     if (x >= MAP_COLS) return;
     for (i = 0; i < MAX_BULLETS; i++)
     {
@@ -102,6 +116,7 @@ static void SpawnBullet(unsigned char lane, unsigned char x)
 static void PlantsAttack(void)
 {
     unsigned char i;
+    /* 每帧遍历射手：冷却完成且前方有敌人则发射。 */
     for (i = 0; i < MAX_PLANTS; i++)
     {
         if (!g_plants[i].active) continue;
@@ -124,6 +139,7 @@ static void PlantsAttack(void)
 static void MoveBulletsAndHit(void)
 {
     unsigned char i, j;
+    /* 先移动子弹，再进行同轨道同坐标碰撞判定。 */
     for (i = 0; i < MAX_BULLETS; i++)
     {
         if (!g_bullets[i].active) continue;
@@ -161,6 +177,7 @@ static void MoveBulletsAndHit(void)
 static void EnemiesAct(void)
 {
     unsigned char i;
+    /* 敌人行为优先级：同格啃植物 > 按速度前进 > 到达左端扣血。 */
     for (i = 0; i < MAX_ENEMIES; i++)
     {
         Plant *p;
@@ -204,12 +221,14 @@ static void EnemiesAct(void)
 
 void Game_LoadBestScore(void)
 {
+    /* 从 EEPROM 读取历史最高分，并做上限兜底。 */
     g_best_score = AT24C02_ReadWord(0);
     if (g_best_score > MAX_VALID_SCORE) g_best_score = 0;
 }
 
 void Game_SaveBestScoreIfNeed(void)
 {
+    /* 只有本局分数更高才写回 EEPROM，减少写损耗。 */
     if (g_game.score > g_best_score)
     {
         g_best_score = g_game.score;
@@ -224,6 +243,7 @@ unsigned int Game_GetBestScore(void)
 
 void Game_Init(unsigned char mode)
 {
+    /* 每次开局都重置玩家状态与对象池。 */
     g_game.cursor_lane = 0;
     g_game.cursor_col = 1;
     g_game.life = 5;
@@ -234,18 +254,21 @@ void Game_Init(unsigned char mode)
 
     if (mode == 0)
     {
+        /* 简单：刷怪慢、敌人移动慢、目标时长较短。 */
         g_game.spawn_interval = 12;
         g_game.enemy_move_step = 3;
         g_game.target_tick = 600;
     }
     else if (mode == 1)
     {
+        /* 中等：刷怪更快、移动更快、目标时长更长。 */
         g_game.spawn_interval = 8;
         g_game.enemy_move_step = 2;
         g_game.target_tick = 700;
     }
     else
     {
+        /* 困难：刷怪最快，综合压力最高。 */
         g_game.spawn_interval = 6;
         g_game.enemy_move_step = 2;
         g_game.target_tick = 800;
@@ -260,6 +283,7 @@ void Game_HandleKey(unsigned char key)
     Plant *p;
     unsigned char i;
 
+    /* 光标移动：限制在有效地图范围。 */
     if (key == KEY_UP && g_game.cursor_lane > 0) g_game.cursor_lane--;
     if (key == KEY_DOWN && g_game.cursor_lane < (LANE_COUNT - 1)) g_game.cursor_lane++;
     if (key == KEY_LEFT && g_game.cursor_col > 0) g_game.cursor_col--;
@@ -269,6 +293,7 @@ void Game_HandleKey(unsigned char key)
     {
         unsigned int cost = (key == KEY_SHOOTER) ? 40 : 30;
         unsigned char type = (key == KEY_SHOOTER) ? PLANT_SHOOTER : PLANT_WALL;
+        /* 资源不足或当前位置已有植物时，不允许建造。 */
         if (g_game.resource < cost) return;
         if (FindPlant(g_game.cursor_lane, g_game.cursor_col) != 0) return;
 
@@ -298,8 +323,10 @@ void Game_HandleKey(unsigned char key)
 
 void Game_Update100ms(void)
 {
+    /* 仅在运行态推进，胜负已定时不再更新对象。 */
     if (g_game.game_over != GAME_RUNNING) return;
 
+    /* 先判定是否达到生存目标，再执行本帧战斗更新。 */
     g_game.survive_tick++;
     if (g_game.survive_tick >= g_game.target_tick)
     {
@@ -315,6 +342,7 @@ void Game_Update100ms(void)
         SpawnEnemy();
     }
 
+    /* 固定更新顺序：植物攻击 -> 子弹移动命中 -> 敌人行动。 */
     PlantsAttack();
     MoveBulletsAndHit();
     EnemiesAct();
@@ -328,6 +356,7 @@ unsigned int Game_GetSurviveSecond(void)
 void Game_BuildLaneChars(unsigned char lane, char *out12)
 {
     unsigned char i;
+    /* 先填背景，再按植物/子弹/敌人/光标覆盖，后者优先级更高。 */
     for (i = 0; i < MAP_COLS; i++) out12[i] = '.';
 
     for (i = 0; i < MAX_PLANTS; i++)

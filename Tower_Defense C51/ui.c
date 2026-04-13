@@ -1,3 +1,11 @@
+/*------------------------------------------------------------
+ * 文件：ui.c
+ * 作用：UI 状态机与界面绘制，实现“开始/选关/游戏/暂停/结算”页面。
+ * 框架：
+ *   - 维护双缓冲：screen_now / screen_old
+ *   - 页面函数负责填充 screen_now
+ *   - FlushDiff() 只把变化字符写到 OLED，降低闪烁
+ *-----------------------------------------------------------*/
 #include "ui.h"
 #include "oled.h"
 #include "keypad.h"
@@ -12,11 +20,13 @@ static char xdata screen_old[4][16];
 static void FillLine(unsigned char row, char ch)
 {
     unsigned char i;
+    /* 用指定字符覆盖整行，常用于先清空再写文本。 */
     for (i = 0; i < 16; i++) screen_now[row][i] = ch;
 }
 
 static void PutText(unsigned char row, unsigned char col, char code *str)
 {
+    /* 按列连续写字符串，超出 16 列会自动截断。 */
     while (*str && col < 16)
     {
         screen_now[row][col++] = *str++;
@@ -25,6 +35,7 @@ static void PutText(unsigned char row, unsigned char col, char code *str)
 
 static void PutNum2(unsigned char row, unsigned char col, unsigned int num)
 {
+    /* 以两位十进制显示（00~99），用于资源/生命等短数字。 */
     if (col > 14) return;
     screen_now[row][col] = (char)('0' + (num / 10) % 10);
     screen_now[row][col + 1] = (char)('0' + num % 10);
@@ -32,6 +43,7 @@ static void PutNum2(unsigned char row, unsigned char col, unsigned int num)
 
 static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 {
+    /* 以四位十进制显示（0000~9999），用于分数/时长。 */
     if (col > 12) return;
     screen_now[row][col] = (char)('0' + (num / 1000) % 10);
     screen_now[row][col + 1] = (char)('0' + (num / 100) % 10);
@@ -106,6 +118,7 @@ void UI_DrawGame(void)
     FillLine(2, ' ');
     FillLine(3, ' ');
 
+    /* 顶栏：R=资源，H=生命，S=分数。 */
     PutText(0, 0, "R");
     PutNum2(0, 1, g_game.resource % 100);
     PutText(0, 4, "H");
