@@ -9,8 +9,8 @@
 #ifndef __GAME_H__
 #define __GAME_H__
 
-#define LANE_COUNT           3   /* 轨道数 */
-#define MAP_COLS             12  /* 每条轨道可显示列数 */
+#define LANE_COUNT           2   /* 轨道数 */
+#define MAP_COLS             16  /* 每条轨道可显示列数 */
 #define MAX_PLANTS           8   /* 植物对象池容量 */
 #define MAX_ENEMIES          8   /* 敌人对象池容量 */
 #define MAX_BULLETS          12  /* 子弹对象池容量 */
@@ -26,6 +26,10 @@
 #define GAME_RUNNING         0   /* 进行中 */
 #define GAME_WIN             1   /* 胜利 */
 #define GAME_LOSE            2   /* 失败 */
+
+#define TOOL_SHOOTER         0   /* 当前工具：射手 */
+#define TOOL_WALL            1   /* 当前工具：坚果墙 */
+#define TOOL_REMOVE          2   /* 当前工具：铲除 */
 
 typedef struct
 {
@@ -67,6 +71,8 @@ typedef struct
     unsigned int target_tick;       /* 目标生存tick */
     unsigned char spawn_interval;   /* 刷怪间隔（tick） */
     unsigned char enemy_move_step;  /* 普通敌移动步进阈值 */
+    unsigned char selected_tool;    /* 当前建造工具 */
+    unsigned char cursor_hide_tick; /* 建造后短暂隐藏光标计时（100ms/tick） */
     unsigned char game_over;        /* 胜负状态 */
 } GameState;
 
@@ -81,7 +87,7 @@ extern Bullet GAME_OBJECT_MEM g_bullets[MAX_BULLETS];
 void Game_Init(unsigned char mode);
 void Game_Update100ms(void);
 void Game_HandleKey(unsigned char key);
-/* 将指定轨道对象渲染为 12 字符（供 UI 显示）。 */
+/* 将指定轨道对象渲染为 MAP_COLS 字符（供 UI 显示）。 */
 void Game_BuildLaneChars(unsigned char lane, char *out12);
 /* 从 EEPROM 加载历史最高分。 */
 void Game_LoadBestScore(void);

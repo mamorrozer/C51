@@ -14,10 +14,10 @@
 unsigned char g_ui_state = UI_START;
 unsigned char g_mode_select = 0;
 
-static char xdata screen_now[4][16];
-static char xdata screen_old[4][16];
+static unsigned char xdata screen_now[4][16];
+static unsigned char xdata screen_old[4][16];
 
-static void FillLine(unsigned char row, char ch)
+static void FillLine(unsigned char row, unsigned char ch)
 {
     unsigned char i;
     /* 用指定字符覆盖整行，常用于先清空再写文本。 */
@@ -29,7 +29,7 @@ static void PutText(unsigned char row, unsigned char col, char code *str)
     /* 按列连续写字符串，超出 16 列会自动截断。 */
     while (*str && col < 16)
     {
-        screen_now[row][col++] = *str++;
+        screen_now[row][col++] = (unsigned char)(*str++);
     }
 }
 
@@ -54,7 +54,32 @@ static void PutNum4(unsigned char row, unsigned char col, unsigned int num)
 static void FlushDiff(void)
 {
     unsigned char r, c;
-    /* 局部刷新核心：只写变化字符，避免整屏重绘导致闪烁。 */
+    /* 游戏页优先保证两条轨道区域整行重绘，顶栏按差异刷新。 */
+    if (g_ui_state == UI_PLAY)
+    {
+        for (c = 0; c < 16; c++)
+        {
+            if (screen_now[0][c] != screen_old[0][c])
+            {
+                OLED_SetCursor(0, c);
+                OLED_WriteChar(screen_now[0][c]);
+                screen_old[0][c] = screen_now[0][c];
+            }
+        }
+
+        for (r = 1; r < 4; r++)
+        {
+            OLED_SetCursor(r, 0);
+            for (c = 0; c < 16; c++)
+            {
+                OLED_WriteChar(screen_now[r][c]);
+                screen_old[r][c] = screen_now[r][c];
+            }
+        }
+        return;
+    }
+
+    /* 其余页面走局部刷新，减少闪烁。 */
     for (r = 0; r < 4; r++)
     {
         for (c = 0; c < 16; c++)
@@ -87,10 +112,8 @@ void UI_DrawStart(void)
     FillLine(2, ' ');
     FillLine(3, ' ');
 
-    PutText(0, 0, "QG 51 TD GAME");
-    PutText(1, 0, "2/8 move 5S 9W");
-    PutText(2, 0, "13 pause 16 back");
-    PutText(3, 0, "press 5 to start");
+    PutText(0, 0, "TOWER DEFENSE");
+    PutText(1, 0, "PRESS 10 START");
     FlushDiff();
 }
 
@@ -103,8 +126,7 @@ void UI_DrawMode(void)
 
     PutText(0, 0, "MODE SELECT");
     PutText(1, 0, (g_mode_select == 0) ? ">EASY" : " EASY");
-    PutText(2, 0, (g_mode_select == 1) ? ">MID " : " MID ");
-    PutText(3, 0, (g_mode_select == 2) ? ">HARD" : " HARD");
+    PutText(2, 0, (g_mode_select == 1) ? ">HARD" : " HARD");
     FlushDiff();
 }
 
@@ -118,25 +140,28 @@ void UI_DrawGame(void)
     FillLine(2, ' ');
     FillLine(3, ' ');
 
-    /* 顶栏：R=资源，H=生命，S=分数。 */
-    PutText(0, 0, "R");
-    PutNum2(0, 1, g_game.resource % 100);
-    PutText(0, 4, "H");
-    PutNum2(0, 5, g_game.life);
-    PutText(0, 8, "S");
-    PutNum4(0, 9, g_game.score % 10000);
+    /* 顶栏极简显示：仅保留当前工具、生命和资源。 */
+    PutText(0, 0, "T:");
+    if (g_game.selected_tool == TOOL_SHOOTER) screen_now[0][2] = 'S';
+    else if (g_game.selected_tool == TOOL_WALL) screen_now[0][2] = 'W';
+    else screen_now[0][2] = 'R';
+    PutText(0, 5, "H");
+    PutNum2(0, 6, g_game.life);
+    PutText(0, 10, "R");
+    PutNum2(0, 11, g_game.resource % 100);
 
+    /* 两条轨道分别渲染到第2、3行。 */
     Game_BuildLaneChars(0, lane_chars);
-    screen_now[1][0] = '1'; screen_now[1][1] = ':';
-    for (i = 0; i < MAP_COLS; i++) screen_now[1][2 + i] = lane_chars[i];
+    for (i = 0; i < MAP_COLS; i++)
+    {
+        screen_now[1][i] = (lane_chars[i] == 0 || lane_chars[i] == ' ') ? '-' : lane_chars[i];
+    }
 
     Game_BuildLaneChars(1, lane_chars);
-    screen_now[2][0] = '2'; screen_now[2][1] = ':';
-    for (i = 0; i < MAP_COLS; i++) screen_now[2][2 + i] = lane_chars[i];
-
-    Game_BuildLaneChars(2, lane_chars);
-    screen_now[3][0] = '3'; screen_now[3][1] = ':';
-    for (i = 0; i < MAP_COLS; i++) screen_now[3][2 + i] = lane_chars[i];
+    for (i = 0; i < MAP_COLS; i++)
+    {
+        screen_now[2][i] = (lane_chars[i] == 0 || lane_chars[i] == ' ') ? '-' : lane_chars[i];
+    }
 
     FlushDiff();
 }
@@ -150,7 +175,7 @@ void UI_DrawPause(void)
     PutText(0, 0, "GAME PAUSED");
     PutText(1, 0, "13:continue");
     PutText(2, 0, "16:result");
-    PutText(3, 0, "5/9 disable");
+    PutText(3, 0, "other:noop");
     FlushDiff();
 }
 
@@ -188,7 +213,7 @@ void UI_HandleKey(unsigned char key)
     if (g_ui_state == UI_MODE)
     {
         if (key == KEY_UP && g_mode_select > 0) g_mode_select--;
-        if (key == KEY_DOWN && g_mode_select < 2) g_mode_select++;
+        if (key == KEY_DOWN && g_mode_select < 1) g_mode_select++;
         if (key == KEY_SHOOTER)
         {
             Game_Init(g_mode_select);

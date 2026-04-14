@@ -17,6 +17,7 @@
 #define OLED_TEXT_ROW_MAX    4
 #define OLED_TEXT_COL_MAX    16
 #define OLED_CHAR_WIDTH      8
+#define OLED_COL_OFFSET      2
 
 /* 文本光标：以“行/列字符坐标”记录当前位置，便于 UI 像字符屏一样使用 OLED。 */
 static unsigned char g_cursor_row = 0;
@@ -170,6 +171,7 @@ static void OLED_WriteCommand(unsigned char cmd)
 
 static void OLED_SetPos(unsigned char page, unsigned char col)
 {
+    col = (unsigned char)(col + OLED_COL_OFFSET);
     /* SSD1306 定位：page 决定纵向 8 像素页，col 决定横向列地址。 */
     OLED_WriteCommand((unsigned char)(0xB0 | (page & 0x07)));
     OLED_WriteCommand((unsigned char)(0x10 | ((col >> 4) & 0x0F)));
@@ -216,9 +218,10 @@ static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char
     unsigned char x;
 
     if (row >= OLED_TEXT_ROW_MAX || col >= OLED_TEXT_COL_MAX) return; /* 越界保护，防止写出显示区。 */
+    ch &= 0x7F; /* 限制到 0~127，避免字库越界。 */
 
     glyph = OLED_FONT8x8[ch];
-    page = (unsigned char)(row * 2);
+    page = row;
     x = (unsigned char)(col * OLED_CHAR_WIDTH);
 
     /* 8x8 字符按单页写入，形成 4x16 的文本布局。 */
@@ -267,23 +270,23 @@ void OLED_Init(void)
 {
     /* 上电延时：等待 OLED 内部电源/复位稳定。 */
     DelayMs(100);
-    /* 以下是 SSD1306 初始化序列：时钟、复用率、偏移、寻址模式、方向、电荷泵等配置。 */
+    /* 以下按 128x32 面板参数初始化，解决部分模块右半/底部显示异常。 */
     OLED_WriteCommand(0xAE);
     OLED_WriteCommand(0xD5);
     OLED_WriteCommand(0x80);
     OLED_WriteCommand(0xA8);
-    OLED_WriteCommand(0x3F);
+    OLED_WriteCommand(0x1F);
     OLED_WriteCommand(0xD3);
     OLED_WriteCommand(0x00);
     OLED_WriteCommand(0x40);
     OLED_WriteCommand(0x8D);
     OLED_WriteCommand(0x14);
     OLED_WriteCommand(0x20);
-    OLED_WriteCommand(0x00);
+    OLED_WriteCommand(0x02);
     OLED_WriteCommand(0xA1);
     OLED_WriteCommand(0xC8);
     OLED_WriteCommand(0xDA);
-    OLED_WriteCommand(0x12);
+    OLED_WriteCommand(0x02);
     OLED_WriteCommand(0x81);
     OLED_WriteCommand(0x7F);
     OLED_WriteCommand(0xD9);

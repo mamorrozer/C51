@@ -6,10 +6,13 @@
 #include <REGX52.H>
 #include "i2c.h"
 
-/* I2C 总线统一改到 P0 口：OLED / AT24C02 / PCF8591 共用同一条总线。 */
+/* I2C1：OLED / AT24C02 走 P0 口。 */
 /* 注意：8051 的 P0 为开漏结构，硬件上必须给 SCL/SDA 外接上拉电阻。 */
 sbit I2C_SCL = P0^0;
 sbit I2C_SDA = P0^1;
+/* I2C2：PCF8591 走 P1 口，避免与 OLED 总线抢占。 */
+sbit I2C2_SCL = P1^0;
+sbit I2C2_SDA = P1^1;
 
 void I2C_Start(void)
 {
@@ -77,4 +80,66 @@ void I2C_SendAck(unsigned char ack)
     I2C_SDA = ack;
     I2C_SCL = 1;
     I2C_SCL = 0;
+}
+
+void I2C2_Start(void)
+{
+    I2C2_SDA = 1;
+    I2C2_SCL = 1;
+    I2C2_SDA = 0;
+    I2C2_SCL = 0;
+}
+
+void I2C2_Stop(void)
+{
+    I2C2_SDA = 0;
+    I2C2_SCL = 1;
+    I2C2_SDA = 1;
+}
+
+void I2C2_Write(unsigned char dat)
+{
+    unsigned char i;
+    for (i = 0; i < 8; i++)
+    {
+        I2C2_SDA = (dat & 0x80) ? 1 : 0;
+        dat <<= 1;
+        I2C2_SCL = 1;
+        I2C2_SCL = 0;
+    }
+}
+
+unsigned char I2C2_Read(void)
+{
+    unsigned char i;
+    unsigned char dat = 0;
+    I2C2_SDA = 1;
+    for (i = 0; i < 8; i++)
+    {
+        dat <<= 1;
+        I2C2_SCL = 1;
+        if (I2C2_SDA)
+        {
+            dat |= 0x01;
+        }
+        I2C2_SCL = 0;
+    }
+    return dat;
+}
+
+unsigned char I2C2_ReadAck(void)
+{
+    unsigned char ack;
+    I2C2_SDA = 1;
+    I2C2_SCL = 1;
+    ack = I2C2_SDA;
+    I2C2_SCL = 0;
+    return ack;
+}
+
+void I2C2_SendAck(unsigned char ack)
+{
+    I2C2_SDA = ack;
+    I2C2_SCL = 1;
+    I2C2_SCL = 0;
 }

@@ -8,7 +8,7 @@
 #include <REGX52.H>
 #include "beep.h"
 
-sbit BEEP_PIN = P3^7;
+sbit BEEP_PIN = P2^5;
 
 static unsigned int beep_keep_ms = 0;
 static unsigned char beep_repeat = 0;

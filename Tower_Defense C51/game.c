@@ -12,8 +12,12 @@
 #include "beep.h"
 #include "at24c02.h"
 
-#define CURSOR_MAX_COL  (MAP_COLS - 2)
+#define CURSOR_MAX_COL  (MAP_COLS - 1)
 #define MAX_VALID_SCORE 9999u
+#define FAST_ENEMY_MOVE_STEP 3
+#define RESOURCE_GAIN_INTERVAL 10
+#define RESOURCE_GAIN_AMOUNT   3
+#define CURSOR_HIDE_TICKS      5
 
 GameState g_game;
 Plant GAME_OBJECT_MEM g_plants[MAX_PLANTS];
@@ -23,6 +27,7 @@ Bullet GAME_OBJECT_MEM g_bullets[MAX_BULLETS];
 static unsigned int g_best_score = 0;
 static unsigned int rand_seed = 0x35A1;
 static unsigned char spawn_cnt = 0;
+static unsigned char resource_cnt = 0;
 
 static unsigned int NextRand(void)
 {
@@ -113,9 +118,52 @@ static void SpawnBullet(unsigned char lane, unsigned char x)
     }
 }
 
+static void BuildPlantByType(unsigned char type)
+{
+    unsigned char i;
+    unsigned int cost;
+
+    if (type == PLANT_SHOOTER) cost = 40;
+    else cost = 30;
+
+    if (g_game.cursor_col == 0) return; /* 最左列用于工具选择，不允许建造。 */
+    if (g_game.resource < cost) return;
+    if (FindPlant(g_game.cursor_lane, g_game.cursor_col) != 0) return;
+
+    for (i = 0; i < MAX_PLANTS; i++)
+    {
+        if (!g_plants[i].active)
+        {
+            g_plants[i].active = 1;
+            g_plants[i].type = type;
+            g_plants[i].lane = g_game.cursor_lane;
+            g_plants[i].col = g_game.cursor_col;
+            g_plants[i].cool = 0;
+            g_plants[i].hp = (type == PLANT_SHOOTER) ? 4 : 9;
+            g_game.resource -= cost;
+            g_game.cursor_hide_tick = CURSOR_HIDE_TICKS;
+            Beep_Bip(1, 50);
+            return;
+        }
+    }
+}
+
+static void RemovePlantAtCursor(void)
+{
+    Plant *p;
+    if (g_game.cursor_col == 0) return; /* 最左列用于工具选择，不执行铲除。 */
+    p = FindPlant(g_game.cursor_lane, g_game.cursor_col);
+    if (p != 0)
+    {
+        p->active = 0;
+        Beep_Bip(1, 30);
+    }
+}
+
 static void PlantsAttack(void)
 {
     unsigned char i;
+    unsigned char shoot_x;
     /* 每帧遍历射手：冷却完成且前方有敌人则发射。 */
     for (i = 0; i < MAX_PLANTS; i++)
     {
@@ -127,10 +175,12 @@ static void PlantsAttack(void)
             g_plants[i].cool--;
             continue;
         }
-        if (FindEnemyFront(g_plants[i].lane, g_plants[i].col + 1) != 0)
+        if (FindEnemyFront(g_plants[i].lane, g_plants[i].col) != 0)
         {
-            SpawnBullet(g_plants[i].lane, g_plants[i].col + 1);
-            g_plants[i].cool = 2;
+            shoot_x = (unsigned char)(g_plants[i].col + 1);
+            if (shoot_x >= MAP_COLS) shoot_x = g_plants[i].col;
+            SpawnBullet(g_plants[i].lane, shoot_x);
+            g_plants[i].cool = 1;
             Beep_Bip(1, 20);
         }
     }
@@ -198,7 +248,8 @@ static void EnemiesAct(void)
             continue;
         }
 
-        move_need = (g_enemies[i].type == ENEMY_FAST) ? 1 : g_game.enemy_move_step;
+        /* 快速敌固定为每 300ms 移动一次，避免过快导致不可玩。 */
+        move_need = (g_enemies[i].type == ENEMY_FAST) ? FAST_ENEMY_MOVE_STEP : g_game.enemy_move_step;
         g_enemies[i].move_cnt++;
         if (g_enemies[i].move_cnt < move_need) continue;
         g_enemies[i].move_cnt = 0;
@@ -250,38 +301,50 @@ void Game_Init(unsigned char mode)
     g_game.resource = 100;
     g_game.score = 0;
     g_game.survive_tick = 0;
+    g_game.selected_tool = TOOL_SHOOTER;
+    g_game.cursor_hide_tick = 0;
     g_game.game_over = GAME_RUNNING;
 
     if (mode == 0)
     {
         /* 简单：刷怪慢、敌人移动慢、目标时长较短。 */
-        g_game.spawn_interval = 12;
-        g_game.enemy_move_step = 3;
-        g_game.target_tick = 600;
-    }
-    else if (mode == 1)
-    {
-        /* 中等：刷怪更快、移动更快、目标时长更长。 */
-        g_game.spawn_interval = 8;
-        g_game.enemy_move_step = 2;
-        g_game.target_tick = 700;
+        g_game.spawn_interval = 16;
+        g_game.enemy_move_step = 4;
+        g_game.target_tick = 500;
     }
     else
     {
-        /* 困难：刷怪最快，综合压力最高。 */
-        g_game.spawn_interval = 6;
-        g_game.enemy_move_step = 2;
-        g_game.target_tick = 800;
+        /* 困难：刷怪更快，综合压力更高。 */
+        g_game.spawn_interval = 9;
+        g_game.enemy_move_step = 3;
+        g_game.target_tick = 700;
     }
 
     spawn_cnt = 0;
+    resource_cnt = 0;
     ClearAllObjects();
 }
 
 void Game_HandleKey(unsigned char key)
 {
-    Plant *p;
-    unsigned char i;
+    if (key == KEY_TOOL_SHOOTER)
+    {
+        g_game.selected_tool = TOOL_SHOOTER;
+        Beep_Bip(1, 30);
+        return;
+    }
+    if (key == KEY_TOOL_WALL)
+    {
+        g_game.selected_tool = TOOL_WALL;
+        Beep_Bip(1, 30);
+        return;
+    }
+    if (key == KEY_TOOL_REMOVE)
+    {
+        g_game.selected_tool = TOOL_REMOVE;
+        Beep_Bip(1, 30);
+        return;
+    }
 
     /* 光标移动：限制在有效地图范围。 */
     if (key == KEY_UP && g_game.cursor_lane > 0) g_game.cursor_lane--;
@@ -289,35 +352,42 @@ void Game_HandleKey(unsigned char key)
     if (key == KEY_LEFT && g_game.cursor_col > 0) g_game.cursor_col--;
     if (key == KEY_RIGHT && g_game.cursor_col < CURSOR_MAX_COL) g_game.cursor_col++;
 
-    if (key == KEY_SHOOTER || key == KEY_WALL)
+    if (key == KEY_WALL)
     {
-        unsigned int cost = (key == KEY_SHOOTER) ? 40 : 30;
-        unsigned char type = (key == KEY_SHOOTER) ? PLANT_SHOOTER : PLANT_WALL;
-        /* 资源不足或当前位置已有植物时，不允许建造。 */
-        if (g_game.resource < cost) return;
-        if (FindPlant(g_game.cursor_lane, g_game.cursor_col) != 0) return;
-
-        for (i = 0; i < MAX_PLANTS; i++)
-        {
-            if (!g_plants[i].active)
-            {
-                g_plants[i].active = 1;
-                g_plants[i].type = type;
-                g_plants[i].lane = g_game.cursor_lane;
-                g_plants[i].col = g_game.cursor_col;
-                g_plants[i].cool = 0;
-                g_plants[i].hp = (type == PLANT_SHOOTER) ? 4 : 9;
-                g_game.resource -= cost;
-                Beep_Bip(1, 50);
-                break;
-            }
-        }
+        BuildPlantByType(PLANT_WALL);
+        return;
+    }
+    if (key == KEY_REMOVE)
+    {
+        RemovePlantAtCursor();
+        return;
+    }
+    if (key != KEY_SHOOTER)
+    {
+        return;
     }
 
-    p = FindPlant(g_game.cursor_lane, g_game.cursor_col);
-    if (key == KEY_REMOVE && p != 0)
+    /* 光标在最左列时，中键用于选择工具，不执行建造。 */
+    if (g_game.cursor_col == 0)
     {
-        p->active = 0;
+        if (g_game.cursor_lane == 0) g_game.selected_tool = TOOL_SHOOTER;
+        else if (g_game.cursor_lane == 1) g_game.selected_tool = TOOL_WALL;
+        else g_game.selected_tool = TOOL_REMOVE;
+        Beep_Bip(1, 30);
+        return;
+    }
+
+    if (g_game.selected_tool == TOOL_SHOOTER)
+    {
+        BuildPlantByType(PLANT_SHOOTER);
+    }
+    else if (g_game.selected_tool == TOOL_WALL)
+    {
+        BuildPlantByType(PLANT_WALL);
+    }
+    else
+    {
+        RemovePlantAtCursor();
     }
 }
 
@@ -328,6 +398,7 @@ void Game_Update100ms(void)
 
     /* 先判定是否达到生存目标，再执行本帧战斗更新。 */
     g_game.survive_tick++;
+    if (g_game.cursor_hide_tick > 0) g_game.cursor_hide_tick--;
     if (g_game.survive_tick >= g_game.target_tick)
     {
         g_game.game_over = GAME_WIN;
@@ -340,6 +411,13 @@ void Game_Update100ms(void)
     {
         spawn_cnt = 0;
         SpawnEnemy();
+    }
+
+    resource_cnt++;
+    if (resource_cnt >= RESOURCE_GAIN_INTERVAL)
+    {
+        resource_cnt = 0;
+        g_game.resource += RESOURCE_GAIN_AMOUNT;
     }
 
     /* 固定更新顺序：植物攻击 -> 子弹移动命中 -> 敌人行动。 */
@@ -356,13 +434,16 @@ unsigned int Game_GetSurviveSecond(void)
 void Game_BuildLaneChars(unsigned char lane, char *out12)
 {
     unsigned char i;
+    unsigned char tool = (lane == 0) ? TOOL_SHOOTER : ((lane == 1) ? TOOL_WALL : TOOL_REMOVE);
     /* 先填背景，再按植物/子弹/敌人/光标覆盖，后者优先级更高。 */
-    for (i = 0; i < MAP_COLS; i++) out12[i] = '.';
+    for (i = 0; i < MAP_COLS; i++) out12[i] = '-';
+    out12[0] = (tool == g_game.selected_tool) ? ((lane == 0) ? 'S' : ((lane == 1) ? 'W' : 'R'))
+                                              : ((lane == 0) ? 's' : ((lane == 1) ? 'w' : 'r'));
 
     for (i = 0; i < MAX_PLANTS; i++)
     {
         if (!g_plants[i].active || g_plants[i].lane != lane) continue;
-        if (g_plants[i].col < MAP_COLS)
+        if (g_plants[i].col > 0 && g_plants[i].col < MAP_COLS)
         {
             out12[g_plants[i].col] = (g_plants[i].type == PLANT_SHOOTER) ? 'S' : 'W';
         }
@@ -370,7 +451,7 @@ void Game_BuildLaneChars(unsigned char lane, char *out12)
     for (i = 0; i < MAX_BULLETS; i++)
     {
         if (!g_bullets[i].active || g_bullets[i].lane != lane) continue;
-        if (g_bullets[i].x < MAP_COLS)
+        if (g_bullets[i].x > 0 && g_bullets[i].x < MAP_COLS)
         {
             out12[g_bullets[i].x] = '*';
         }
@@ -378,14 +459,17 @@ void Game_BuildLaneChars(unsigned char lane, char *out12)
     for (i = 0; i < MAX_ENEMIES; i++)
     {
         if (!g_enemies[i].active || g_enemies[i].lane != lane) continue;
-        if (g_enemies[i].x < MAP_COLS)
+        if (g_enemies[i].x > 0 && g_enemies[i].x < MAP_COLS)
         {
             out12[g_enemies[i].x] = (g_enemies[i].type == ENEMY_FAST) ? 'Z' : 'z';
         }
     }
 
-    if (g_game.cursor_lane == lane && g_game.cursor_col < MAP_COLS)
+    if (g_game.cursor_hide_tick == 0 &&
+        g_game.cursor_lane == lane &&
+        g_game.cursor_col < MAP_COLS)
     {
-        out12[g_game.cursor_col] = 'C';
+        out12[g_game.cursor_col] = '+';
     }
 }
+

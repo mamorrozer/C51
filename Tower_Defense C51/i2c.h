@@ -6,6 +6,7 @@
 #ifndef __I2C_H__
 #define __I2C_H__
 
+/*==================== I2C1：OLED/AT24C02（P0.0/P0.1） ====================*/
 /* 起始信号：SCL高电平期间 SDA 高->低。 */
 void I2C_Start(void);
 /* 停止信号：SCL高电平期间 SDA 低->高。 */
@@ -18,5 +19,13 @@ unsigned char I2C_Read(void);
 unsigned char I2C_ReadAck(void);
 /* 主机发送应答位：ack=0 发送ACK；ack=1 发送NACK。 */
 void I2C_SendAck(unsigned char ack);
+
+/*==================== I2C2：PCF8591（P1.0/P1.1） ====================*/
+void I2C2_Start(void);
+void I2C2_Stop(void);
+void I2C2_Write(unsigned char dat);
+unsigned char I2C2_Read(void);
+unsigned char I2C2_ReadAck(void);
+void I2C2_SendAck(unsigned char ack);
 
 #endif

@@ -1,165 +1,144 @@
 /*------------------------------------------------------------
  * 文件：keypad.c
- * 作用：输入驱动层，将 HW504 摇杆（PCF8591 采样）转换为统一 KEY_* 键值。
+ * 作用：输入驱动层，将 4x4 矩阵键盘转换为统一 KEY_* 键值。
  * 框架：
- *   1) PCF8591_Read() 读取 X/Y 模拟量；
- *   2) HW504_GetDirection() 将模拟量判定为方向；
- *   3) Keypad_GetKey() 结合按压键与去抖/防连发策略，映射为业务键。
+ *   1) 扫描行列得到原始键号（1~16）；
+ *   2) 把原始键号映射成游戏键值；
+ *   3) 使用“按下锁存、松开解锁”避免长按连发。
  *-----------------------------------------------------------*/
 #include <REGX52.H>
 #include "keypad.h"
-#include "i2c.h"
 
-/* HW504 摇杆改为 PCF8591 采样（I2C 设备）：
- * PCF8591 A0/A1/A2 建议接 GND，地址为 0x90(写)/0x91(读)；
- * CH0 接摇杆 X，CH1 接摇杆 Y；
- * 摇杆按压键 SW 仍接 P3.3（低电平按下）。
+/* 开发板矩阵键盘连接：
+ * 行：P1.7~P1.4
+ * 列：P1.3~P1.0
  */
-sbit JOY_SW = P3^3;
+sbit KP_ROW1 = P1^7;
+sbit KP_ROW2 = P1^6;
+sbit KP_ROW3 = P1^5;
+sbit KP_ROW4 = P1^4;
+sbit KP_COL1 = P1^3;
+sbit KP_COL2 = P1^2;
+sbit KP_COL3 = P1^1;
+sbit KP_COL4 = P1^0;
 
-#define PCF8591_ADDR_WRITE     0x90
-#define PCF8591_ADDR_READ      0x91
-
-#define ADC_CH_X               0
-#define ADC_CH_Y               1
-#define ADC_CENTER             128
-#define ADC_DEAD_ZONE          32
-#define ADC_DIR_STRONG_DELTA   64
-#define ADC_SAMPLE_DIV         2
-
-typedef enum
+static void Matrix_SetIdle(void)
 {
-    JOY_DIR_CENTER = 0,
-    JOY_DIR_UP,
-    JOY_DIR_DOWN,
-    JOY_DIR_LEFT,
-    JOY_DIR_RIGHT
-} JoyDir;
-
-static unsigned char PCF8591_Read(unsigned char channel)
-{
-    unsigned char control;
-    unsigned char value;
-
-    /* 控制字：0x40 选择单端输入模式，低两位为通道号(0~3)。 */
-    control = (unsigned char)(0x40 | (channel & 0x03));
-
-    I2C_Start();
-    I2C_Write(PCF8591_ADDR_WRITE);
-    if (I2C_ReadAck()) goto stop_error;
-    I2C_Write(control);
-    if (I2C_ReadAck()) goto stop_error;
-
-    /* 重新起始切到读，PCF8591 首字节是“上一次缓存”，需要先读掉。 */
-    I2C_Start();
-    I2C_Write(PCF8591_ADDR_READ);
-    if (I2C_ReadAck()) goto stop_error;
-    (void)I2C_Read(); /* 首字节为无效缓存值，必须先丢弃。 */
-    I2C_SendAck(0);
-
-    /* 第二字节才是当前通道有效值，读完发送 NACK 结束。 */
-    value = I2C_Read();
-    I2C_SendAck(1);
-    I2C_Stop();
-    return value;
-
-stop_error:
-    /* I2C 失败时返回中心值，避免误判成极限方向。 */
-    I2C_Stop();
-    return ADC_CENTER;
+    KP_ROW1 = 1;
+    KP_ROW2 = 1;
+    KP_ROW3 = 1;
+    KP_ROW4 = 1;
+    KP_COL1 = 1;
+    KP_COL2 = 1;
+    KP_COL3 = 1;
+    KP_COL4 = 1;
 }
 
-static unsigned char AbsDiff(unsigned char a, unsigned char b)
+static unsigned char Matrix_ReadColIndex(void)
 {
-    return (a > b) ? (a - b) : (b - a);
+    if (KP_COL1 == 0) return 1;
+    if (KP_COL2 == 0) return 2;
+    if (KP_COL3 == 0) return 3;
+    if (KP_COL4 == 0) return 4;
+    return 0;
 }
 
-static JoyDir HW504_GetDirection(unsigned char x, unsigned char y)
+static unsigned char Matrix_ReadRawKey(void)
 {
-    unsigned char dx = AbsDiff(x, ADC_CENTER);
-    unsigned char dy = AbsDiff(y, ADC_CENTER);
+    unsigned char col;
 
-    /* X/Y 都在死区内时判定为中立，抑制轻微抖动。 */
-    if (dx < ADC_DEAD_ZONE && dy < ADC_DEAD_ZONE)
+    Matrix_SetIdle();
+
+    KP_ROW1 = 0;
+    col = Matrix_ReadColIndex();
+    if (col != 0)
     {
-        return JOY_DIR_CENTER;
+        Matrix_SetIdle();
+        return col;
+    }
+    KP_ROW1 = 1;
+
+    KP_ROW2 = 0;
+    col = Matrix_ReadColIndex();
+    if (col != 0)
+    {
+        Matrix_SetIdle();
+        return (unsigned char)(4 + col);
+    }
+    KP_ROW2 = 1;
+
+    KP_ROW3 = 0;
+    col = Matrix_ReadColIndex();
+    if (col != 0)
+    {
+        Matrix_SetIdle();
+        return (unsigned char)(8 + col);
+    }
+    KP_ROW3 = 1;
+
+    KP_ROW4 = 0;
+    col = Matrix_ReadColIndex();
+    if (col != 0)
+    {
+        Matrix_SetIdle();
+        return (unsigned char)(12 + col);
     }
 
-    /* 谁偏离中心更大就按哪个轴判方向，减少斜向误触。 */
-    if (dx >= dy)
-    {
-        if (x > (ADC_CENTER + ADC_DIR_STRONG_DELTA)) return JOY_DIR_RIGHT;
-        if (x < (ADC_CENTER - ADC_DIR_STRONG_DELTA)) return JOY_DIR_LEFT;
-    }
-    else
-    {
-        /* HW504 常见接法：Y 增大为上移；若“上推摇杆但光标下移”，互换这两行返回值 */
-        if (y > (ADC_CENTER + ADC_DIR_STRONG_DELTA)) return JOY_DIR_UP;
-        if (y < (ADC_CENTER - ADC_DIR_STRONG_DELTA)) return JOY_DIR_DOWN;
-    }
+    Matrix_SetIdle();
+    return 0;
+}
 
-    return JOY_DIR_CENTER;
+static unsigned char MapRawKeyToGameKey(unsigned char raw_key)
+{
+    /* 默认键位：
+     * 6=上，14=下，9=左，11=右
+     * 1/2/3 = 快捷工具切换（射手/墙/铲），10=确认/执行
+     * 13=暂停，16=返回
+     */
+    switch (raw_key)
+    {
+    case 6:  return KEY_UP;
+    case 14: return KEY_DOWN;
+    case 9:  return KEY_LEFT;
+    case 11: return KEY_RIGHT;
+    case 10: return KEY_SHOOTER;
+
+    case 1:  return KEY_TOOL_SHOOTER;
+    case 2:  return KEY_TOOL_WALL;
+    case 3:  return KEY_TOOL_REMOVE;
+
+    case 13: return KEY_PAUSE;
+    case 16: return KEY_BACK;
+    default: return KEY_NONE;
+    }
 }
 
 unsigned char Keypad_GetKey(void)
 {
-    /* repeat_lock：方向/按压未回中前只触发一次，避免长按连发。 */
-    static bit repeat_lock = 0;
-    /* 降采样：每 ADC_SAMPLE_DIV 次轮询读一次 ADC，减轻 I2C 负担并平滑输入。 */
-    static unsigned char sample_div_cnt = 0;
-    static unsigned char x_cache = ADC_CENTER;
-    static unsigned char y_cache = ADC_CENTER;
-    JoyDir dir;
-    unsigned char key = KEY_NONE;
-    bit pressed;
-    unsigned char x;
-    unsigned char y;
+    static bit key_lock = 0;
+    unsigned char raw_key;
+    unsigned char key;
 
-    sample_div_cnt++;
-    if (sample_div_cnt >= ADC_SAMPLE_DIV)
-    {
-        sample_div_cnt = 0;
-        x_cache = PCF8591_Read(ADC_CH_X);
-        y_cache = PCF8591_Read(ADC_CH_Y);
-    }
-    x = x_cache;
-    y = y_cache;
-    dir = HW504_GetDirection(x, y);
-    pressed = (JOY_SW == 0) ? 1 : 0;
+    raw_key = Matrix_ReadRawKey();
 
-    if (repeat_lock)
+    if (key_lock)
     {
-        /* 摇杆回中且按压松开后解锁，允许下一次按键事件。 */
-        if (dir == JOY_DIR_CENTER && !pressed)
+        if (raw_key == 0)
         {
-            repeat_lock = 0;
+            key_lock = 0;
         }
         return KEY_NONE;
     }
 
-    if (pressed)
+    if (raw_key == 0)
     {
-        /* 按下摇杆时：方向键映射到功能键（建造/暂停/返回等）。 */
-        if (dir == JOY_DIR_UP) key = KEY_WALL;
-        else if (dir == JOY_DIR_DOWN) key = KEY_REMOVE;
-        else if (dir == JOY_DIR_LEFT) key = KEY_PAUSE;
-        else if (dir == JOY_DIR_RIGHT) key = KEY_BACK;
-        else key = KEY_SHOOTER;
-    }
-    else
-    {
-        /* 未按下摇杆时：方向键映射为纯移动。 */
-        if (dir == JOY_DIR_UP) key = KEY_UP;
-        else if (dir == JOY_DIR_DOWN) key = KEY_DOWN;
-        else if (dir == JOY_DIR_LEFT) key = KEY_LEFT;
-        else if (dir == JOY_DIR_RIGHT) key = KEY_RIGHT;
+        return KEY_NONE;
     }
 
+    key = MapRawKeyToGameKey(raw_key);
     if (key != KEY_NONE)
     {
-        /* 一旦触发有效按键立即加锁，等待下一次“回中+松开”。 */
-        repeat_lock = 1;
+        key_lock = 1;
     }
-
     return key;
 }

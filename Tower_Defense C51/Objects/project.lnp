@@ -1,8 +1,13 @@
 ".\Objects\main.obj",
 ".\Objects\I2C.obj",
 ".\Objects\AT24C02.obj",
-".\Objects\UART.obj",
-".\Objects\Delay.obj" 
+".\Objects\Delay.obj",
+".\Objects\beep.obj",
+".\Objects\game.obj",
+".\Objects\keypad.obj",
+".\Objects\timer.obj",
+".\Objects\ui.obj",
+".\Objects\oled.obj" 
 TO ".\Objects\project" 
 PRINT(".\Listings\project.m51") RAMSIZE(256) 
 DISABLEWARNING (16) 
