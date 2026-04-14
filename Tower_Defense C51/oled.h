@@ -17,5 +17,7 @@ void OLED_SetCursor(unsigned char row, unsigned char col);
 void OLED_WriteChar(unsigned char ch);
 /* 从指定位置连续写字符串。 */
 void OLED_WriteString(unsigned char row, unsigned char col, char code *str);
+/* 显示自检：固定输出 4 行测试内容，验证驱动是否能完整渲染全部行列。 */
+void OLED_SelfTestPattern(void);
 
 #endif

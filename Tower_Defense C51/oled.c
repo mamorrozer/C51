@@ -159,11 +159,12 @@ static unsigned char code OLED_FONT8x8[128][8] =
 static void OLED_WriteCommand(unsigned char cmd)
 {
     /* 命令帧格式：设备地址(写) + 控制字0x00 + 命令字节。 */
+    /* 检测 NACK 时尽早终止，避免错误状态连锁污染后续传输。 */
     I2C_Start();
     I2C_Write(OLED_ADDR_WRITE);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     I2C_Write(OLED_CTRL_CMD);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     I2C_Write(cmd);
     I2C_ReadAck();
     I2C_Stop();
@@ -178,19 +179,23 @@ static void OLED_SetPos(unsigned char page, unsigned char col)
     OLED_WriteCommand((unsigned char)(0x00 | (col & 0x0F)));
 }
 
-static void OLED_WriteDataBlock(const unsigned char *dat, unsigned char len)
+static void OLED_WriteDataBlock(const unsigned char code *dat, unsigned char len)
 {
     unsigned char i;
-    /* 数据帧格式：设备地址(写) + 控制字0x40 + 连续像素字节。 */
+    /*
+     * 数据帧格式：设备地址(写) + 控制字0x40 + 连续像素字节。
+     * 参数用 code 指针确保从 ROM 字库正确读取，兼容各内存模型。
+     * 检测 NACK 时尽早终止本次传输。
+     */
     I2C_Start();
     I2C_Write(OLED_ADDR_WRITE);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     I2C_Write(OLED_CTRL_DATA);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     for (i = 0; i < len; i++)
     {
         I2C_Write(dat[i]);
-        I2C_ReadAck();
+        if (I2C_ReadAck()) { I2C_Stop(); return; }
     }
     I2C_Stop();
 }
@@ -198,15 +203,16 @@ static void OLED_WriteDataBlock(const unsigned char *dat, unsigned char len)
 static void OLED_WriteDataRepeat(unsigned char dat, unsigned char count)
 {
     unsigned char i;
+    /* 重复写入同一字节，用于清屏等场景。检测 NACK 时尽早终止。 */
     I2C_Start();
     I2C_Write(OLED_ADDR_WRITE);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     I2C_Write(OLED_CTRL_DATA);
-    I2C_ReadAck();
+    if (I2C_ReadAck()) { I2C_Stop(); return; }
     for (i = 0; i < count; i++)
     {
         I2C_Write(dat);
-        I2C_ReadAck();
+        if (I2C_ReadAck()) { I2C_Stop(); return; }
     }
     I2C_Stop();
 }
@@ -218,7 +224,10 @@ static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char
     unsigned char x;
 
     if (row >= OLED_TEXT_ROW_MAX || col >= OLED_TEXT_COL_MAX) return; /* 越界保护，防止写出显示区。 */
-    ch &= 0x7F; /* 限制到 0~127，避免字库越界。 */
+
+    /* 将不可打印字符映射为 '?'，避免字库越界或显示乱码。
+     * 可打印 ASCII 范围：0x20(' ')~0x7E('~')。 */
+    if (ch < 0x20 || ch > 0x7E) ch = '?';
 
     glyph = OLED_FONT8x8[ch];
     page = row;
@@ -231,11 +240,10 @@ static void OLED_WriteCharAt(unsigned char row, unsigned char col, unsigned char
 
 void OLED_WriteChar(unsigned char ch)
 {
+    /* 到达列上限后直接返回，防止越界写入浪费 I2C 带宽。 */
+    if (g_cursor_col >= OLED_TEXT_COL_MAX) return;
     OLED_WriteCharAt(g_cursor_row, g_cursor_col, ch);
-    if (g_cursor_col + 1 < OLED_TEXT_COL_MAX)
-    {
-        g_cursor_col++;
-    }
+    g_cursor_col++;
 }
 
 void OLED_Clear(void)
@@ -259,6 +267,7 @@ void OLED_SetCursor(unsigned char row, unsigned char col)
 
 void OLED_WriteString(unsigned char row, unsigned char col, char code *str)
 {
+    if (!str) return; /* 空指针保护。 */
     OLED_SetCursor(row, col);
     while (*str && g_cursor_col < OLED_TEXT_COL_MAX)
     {
@@ -298,4 +307,18 @@ void OLED_Init(void)
     OLED_WriteCommand(0xAF);
     /* 初始化后清屏并将光标归位。 */
     OLED_Clear();
+}
+
+void OLED_SelfTestPattern(void)
+{
+    /*
+     * 显示自检：固定输出 4 行测试字符串，覆盖行首到行尾（16 列）。
+     * 用于独立验证 OLED 驱动是否能完整渲染全部 4 行 × 16 列，
+     * 不依赖游戏状态，可在 main() 初始化后直接调用排查问题。
+     */
+    OLED_Clear();
+    OLED_WriteString(0, 0, "0123456789ABCDEF");
+    OLED_WriteString(1, 0, "abcdefghijklmnop");
+    OLED_WriteString(2, 0, "!@#$%^&*()_+-=[]");
+    OLED_WriteString(3, 0, "ROW3-TEST-123456");
 }
