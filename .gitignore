@@ -1,0 +1,16 @@
+# Keil C51 忽略编译文件
+*.obj
+*.lst
+*.m51
+*.hex
+*.lib
+*.bak
+*.tmp
+
+# Keil 工程配置
+*.uvproj
+*.uvopt
+*.uvgui
+*.dep
+*.map
+*.log
